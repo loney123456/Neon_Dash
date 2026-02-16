@@ -26,9 +26,28 @@ class HudView:
             color=color.light_gray,
             scale=1.0,
         )
+        self.bonus_text = Text(
+            text="",
+            origin=(-0.5, 0),
+            position=(-0.62, 0.39),
+            color=color.yellow,
+            scale=1.25,
+        )
+        self._bonus_timer = 0.0
 
     def set_score(self, score: int) -> None:
         self.score_text.text = f"Score: {score}"
+
+    def show_pickup_bonus(self, text: str, duration: float = 0.6) -> None:
+        self.bonus_text.text = text
+        self._bonus_timer = duration
+
+    def update(self, dt: float) -> None:
+        if self._bonus_timer <= 0.0:
+            return
+        self._bonus_timer -= dt
+        if self._bonus_timer <= 0.0:
+            self.bonus_text.text = ""
 
     def set_state(self, state: GameState) -> None:
         if state == GameState.START:
@@ -39,4 +58,3 @@ class HudView:
             self.state_text.text = "Paused"
         else:
             self.state_text.text = "Game Over - Press R or SPACE"
-

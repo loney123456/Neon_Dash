@@ -1,6 +1,7 @@
 from ursina import Ursina, Vec3, camera, color, time, window
 
 from config import CONFIG
+from game.collectibles import CollectibleSystem
 from game.hud import HudView
 from game.player import PlayerController
 from game.spawner import ObstacleSpawner
@@ -14,6 +15,7 @@ class NeonDashGame:
         self.player = PlayerController(CONFIG.lane, CONFIG.player)
         self.world = WorldSystem(CONFIG.world, CONFIG.lane)
         self.spawner = ObstacleSpawner(CONFIG.lane, CONFIG.world, CONFIG.spawner)
+        self.collectibles = CollectibleSystem(CONFIG.lane, CONFIG.world, CONFIG.collectible)
         self.hud = HudView()
         self.elapsed_time = 0.0
         self.score = 0
@@ -54,6 +56,7 @@ class NeonDashGame:
         self.player.reset()
         self.world.reset()
         self.spawner.reset()
+        self.collectibles.reset()
         self.hud.set_score(self.score)
         self._set_state(GameState.PLAYING)
 
@@ -101,6 +104,7 @@ class NeonDashGame:
     def update(self) -> None:
         dt = time.dt
         self.player.update(dt)
+        self.hud.update(dt)
 
         if not self.state.is_state(GameState.PLAYING):
             return
@@ -109,7 +113,21 @@ class NeonDashGame:
         difficulty_t = self._difficulty_t()
         speed = self._current_speed()
         self.world.update(dt, speed)
-        self.spawner.update(dt, speed, difficulty_t)
+        blocked_lanes = self.collectibles.lanes_blocked_near_spawn(
+            CONFIG.collectible.min_obstacle_distance_z,
+        )
+        self.spawner.update(dt, speed, difficulty_t, blocked_lanes=blocked_lanes)
+        self.collectibles.update(dt, speed, difficulty_t, self.spawner.obstacles)
+
+        collected_count = self.collectibles.collect_at(
+            player_lane=self.player.lane_index,
+            player_z=self.player.z,
+            threshold=CONFIG.collectible.pickup_z_threshold,
+        )
+        if collected_count > 0:
+            bonus_score = collected_count * CONFIG.collectible.reward_score
+            self.score += bonus_score * 10
+            self.hud.show_pickup_bonus(f"+{bonus_score}")
 
         self.score += int(dt * CONFIG.movement.score_per_second * 10)
         self.hud.set_score(self.score // 10)

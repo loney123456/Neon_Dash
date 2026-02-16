@@ -41,6 +41,25 @@ class SpawnerConfig:
 
 
 @dataclass(frozen=True)
+class CollectibleConfig:
+    start_min_spawn_interval: float = 1.15
+    start_max_spawn_interval: float = 1.85
+    end_min_spawn_interval: float = 0.72
+    end_max_spawn_interval: float = 1.25
+    reward_score: int = 5
+    min_obstacle_distance_z: float = 8.5
+    max_active: int = 7
+    y: float = 2.35
+    scale: float = 0.72
+    pickup_z_threshold: float = 1.2
+    bob_amplitude: float = 0.22
+    bob_speed: float = 4.2
+    spin_speed: float = 170.0
+    glow_scale: float = 2.4
+    glow_alpha: int = 120
+
+
+@dataclass(frozen=True)
 class DifficultyConfig:
     # 0 -> easy ramp start, 1 -> target hard level.
     # ramp_seconds: float = 150.0
@@ -54,6 +73,7 @@ class GameConfig:
     movement: MovementConfig = MovementConfig()
     world: WorldConfig = WorldConfig()
     spawner: SpawnerConfig = SpawnerConfig()
+    collectible: CollectibleConfig = CollectibleConfig()
     difficulty: DifficultyConfig = DifficultyConfig()
 
 

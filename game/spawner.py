@@ -1,4 +1,5 @@
 import random
+from typing import AbstractSet, Optional
 
 from ursina import Entity, color, destroy
 
@@ -61,8 +62,17 @@ class ObstacleSpawner:
         obstacle.lane_index = lane_index
         self.obstacles.append(obstacle)
 
-    def _spawn_pattern(self, difficulty_t: float) -> None:
+    def _spawn_pattern(
+        self,
+        difficulty_t: float,
+        blocked_lanes: Optional[AbstractSet[int]] = None,
+    ) -> None:
+        blocked_lanes = blocked_lanes or set()
         lanes = [0, 1, 2]
+        lanes = [lane for lane in lanes if lane not in blocked_lanes]
+        if not lanes:
+            return
+
         two_obstacle_chance = self._lerp(
             self.spawner_cfg.start_two_obstacle_chance,
             self.spawner_cfg.end_two_obstacle_chance,
@@ -71,16 +81,23 @@ class ObstacleSpawner:
         lane_count = 1
         if random.random() < two_obstacle_chance:
             lane_count = 2
+        lane_count = min(lane_count, len(lanes))
         blocked = random.sample(lanes, k=lane_count)
         for lane in blocked:
             self._spawn_obstacle(lane)
 
-    def update(self, dt: float, speed: float, difficulty_t: float) -> None:
+    def update(
+        self,
+        dt: float,
+        speed: float,
+        difficulty_t: float,
+        blocked_lanes: Optional[AbstractSet[int]] = None,
+    ) -> None:
         self.spawn_timer += dt
         if self.spawn_timer >= self.next_interval:
             self.spawn_timer = 0.0
             self.next_interval = self._pick_next_interval(difficulty_t)
-            self._spawn_pattern(difficulty_t)
+            self._spawn_pattern(difficulty_t, blocked_lanes)
 
         cleanup_z = self.world_cfg.obstacle_cleanup_z
         active_obstacles: list[Entity] = []

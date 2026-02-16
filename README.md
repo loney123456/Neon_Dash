@@ -10,6 +10,7 @@ This repository now contains a playable core loop:
 - 3-lane movement with smooth lane switching
 - Relative world movement (player stays in place, world moves backward)
 - Random obstacle spawning with no full-lane blockage
+- Collectible spawning (coins/energy orbs) with pickup bonus feedback
 - Time-based difficulty curve (speed + spawn rate + obstacle pressure)
 - Collision detection and instant game over
 - Restart flow and basic HUD
@@ -47,13 +48,13 @@ python main.py
 |   |-- player.py
 |   |-- world.py
 |   |-- spawner.py
+|   |-- collectibles.py
 |   `-- hud.py
 `-- assets/
 ```
 
 ## Next Milestones
 
-- Add collectible system and reward effects
 - Add object pooling for obstacles/collectibles
 - Add persistent high score and settings
 - Add audio and VFX polish
