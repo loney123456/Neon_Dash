@@ -10,6 +10,7 @@ This repository now contains a playable core loop:
 - 3-lane movement with smooth lane switching
 - Relative world movement (player stays in place, world moves backward)
 - Random obstacle spawning with no full-lane blockage
+- Time-based difficulty curve (speed + spawn rate + obstacle pressure)
 - Collision detection and instant game over
 - Restart flow and basic HUD
 

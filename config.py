@@ -16,9 +16,8 @@ class PlayerConfig:
 
 @dataclass(frozen=True)
 class MovementConfig:
-    base_speed: float = 14.0
-    speed_acceleration: float = 0.22
-    max_speed: float = 32.0
+    start_speed: float = 12.0
+    end_speed: float = 22.0
     score_per_second: float = 10.0
 
 
@@ -33,9 +32,19 @@ class WorldConfig:
 
 @dataclass(frozen=True)
 class SpawnerConfig:
-    min_spawn_interval: float = 0.55
-    max_spawn_interval: float = 1.25
-    two_obstacle_chance: float = 0.35
+    start_min_spawn_interval: float = 0.95
+    start_max_spawn_interval: float = 1.35
+    end_min_spawn_interval: float = 0.50
+    end_max_spawn_interval: float = 0.78
+    start_two_obstacle_chance: float = 0.18
+    end_two_obstacle_chance: float = 0.58
+
+
+@dataclass(frozen=True)
+class DifficultyConfig:
+    # 0 -> easy ramp start, 1 -> target hard level.
+    # ramp_seconds: float = 150.0
+    ramp_seconds: float = 70.0
 
 
 @dataclass(frozen=True)
@@ -45,6 +54,7 @@ class GameConfig:
     movement: MovementConfig = MovementConfig()
     world: WorldConfig = WorldConfig()
     spawner: SpawnerConfig = SpawnerConfig()
+    difficulty: DifficultyConfig = DifficultyConfig()
 
 
 CONFIG = GameConfig()

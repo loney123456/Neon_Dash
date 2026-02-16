@@ -28,11 +28,20 @@ class NeonDashGame:
         camera.rotation_x = 22
         camera.fov = 50
 
+    @staticmethod
+    def _lerp(a: float, b: float, t: float) -> float:
+        return a + (b - a) * t
+
+    def _difficulty_t(self) -> float:
+        ramp = max(CONFIG.difficulty.ramp_seconds, 1.0)
+        return min(1.0, self.elapsed_time / ramp)
+
     def _current_speed(self) -> float:
-        movement = CONFIG.movement
-        return min(
-            movement.max_speed,
-            movement.base_speed + self.elapsed_time * movement.speed_acceleration,
+        t = self._difficulty_t()
+        return self._lerp(
+            CONFIG.movement.start_speed,
+            CONFIG.movement.end_speed,
+            t,
         )
 
     def _set_state(self, new_state: GameState) -> None:
@@ -97,9 +106,10 @@ class NeonDashGame:
             return
 
         self.elapsed_time += dt
+        difficulty_t = self._difficulty_t()
         speed = self._current_speed()
         self.world.update(dt, speed)
-        self.spawner.update(dt, speed)
+        self.spawner.update(dt, speed, difficulty_t)
 
         self.score += int(dt * CONFIG.movement.score_per_second * 10)
         self.hud.set_score(self.score // 10)
