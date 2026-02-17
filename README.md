@@ -23,15 +23,40 @@ This repository now contains a playable core loop:
 - `ESC`: pause / resume
 - `R`: restart from game over
 
-## Run
+## Runtime Requirements
 
-1. Install dependency:
+- Python `3.9` to `3.11`
+- OpenGL-capable graphics driver (Windows/macOS/Linux)
+
+## Install (Windows PowerShell)
 
 ```bash
-pip install ursina
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+pip install -r requirements.txt
 ```
 
-2. Start game:
+## Install (macOS / Linux)
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+## Preflight Check
+
+Run the runtime preflight before launching:
+
+```bash
+python scripts/preflight_check.py
+```
+
+If this check fails on Linux/macOS, verify OpenGL/graphics drivers first.
+
+## Run
 
 ```bash
 python main.py
@@ -43,6 +68,9 @@ python main.py
 .
 |-- main.py
 |-- config.py
+|-- requirements.txt
+|-- scripts/
+|   `-- preflight_check.py
 |-- game/
 |   |-- state_machine.py
 |   |-- player.py
