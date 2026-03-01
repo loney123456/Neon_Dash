@@ -1,8 +1,8 @@
 import random
 import math
-from typing import Sequence
+from typing import Optional, Sequence
 
-from ursina import Entity, color, destroy
+from ursina import Entity, color
 
 from config import CollectibleConfig, LaneConfig, WorldConfig
 
@@ -21,6 +21,11 @@ class CollectibleSystem:
         self.next_interval = self._pick_next_interval(0.0)
         self.collectibles: list[Entity] = []
         self._anim_time = 0.0
+        self._pool: list[Entity] = []
+        self._created_count = 0
+        self._pool_max_size = max(1, self.collectible_cfg.pool_max_size, self.collectible_cfg.max_active)
+        self._pool_initial_size = max(0, min(self.collectible_cfg.pool_initial_size, self._pool_max_size))
+        self._prewarm_pool()
 
     @staticmethod
     def _lerp(a: float, b: float, t: float) -> float:
@@ -39,38 +44,24 @@ class CollectibleSystem:
         )
         return random.uniform(min_interval, max_interval)
 
-    def reset(self) -> None:
-        self.spawn_timer = 0.0
-        self.next_interval = self._pick_next_interval(0.0)
-        for collectible in self.collectibles:
-            destroy(collectible)
-        self.collectibles.clear()
+    def _prewarm_pool(self) -> None:
+        for _ in range(self._pool_initial_size):
+            collectible = self._create_collectible_entity()
+            collectible._in_pool = True
+            self._pool.append(collectible)
 
-    def _lane_is_safe_for_spawn(self, lane_index: int, obstacles: Sequence[Entity]) -> bool:
-        spawn_z = self.world_cfg.obstacle_spawn_z
-        min_distance = self.collectible_cfg.min_obstacle_distance_z
-        for obstacle in obstacles:
-            if obstacle.lane_index != lane_index:
-                continue
-            if abs(obstacle.z - spawn_z) < min_distance:
-                return False
-        return True
-
-    def _spawn_collectible(self, lane_index: int) -> None:
+    def _create_collectible_entity(self) -> Entity:
         collectible = Entity(
             model="sphere",
             color=color.rgb(255, 214, 64),
-            position=(
-                self.lane_cfg.x_positions[lane_index],
-                self.collectible_cfg.y,
-                self.world_cfg.obstacle_spawn_z,
-            ),
+            position=(0, -1000, self.world_cfg.obstacle_cleanup_z - 100.0),
             scale=self.collectible_cfg.scale * 0.46,
             collider="box",
+            enabled=False,
         )
-        collectible.lane_index = lane_index
+        collectible.lane_index = 1
         collectible.base_y = self.collectible_cfg.y
-        collectible.phase = random.uniform(0.0, math.tau)
+        collectible.phase = 0.0
         collectible.core = Entity(
             parent=collectible,
             model="sphere",
@@ -112,6 +103,74 @@ class CollectibleSystem:
         )
         collectible.outer_ring_base_scale = collectible.outer_ring.scale
         collectible.inner_ring_base_scale = collectible.inner_ring.scale
+        collectible._in_pool = False
+        self._created_count += 1
+        return collectible
+
+    def _acquire_collectible(self) -> Optional[Entity]:
+        collectible: Optional[Entity] = None
+        if self._pool:
+            collectible = self._pool.pop()
+        elif self._created_count < self._pool_max_size:
+            collectible = self._create_collectible_entity()
+        if collectible is None:
+            return None
+        collectible._in_pool = False
+        collectible.enabled = True
+        return collectible
+
+    def _release_collectible(self, collectible: Entity) -> None:
+        if getattr(collectible, "_in_pool", False):
+            return
+        collectible.enabled = False
+        collectible.position = (0, -1000, self.world_cfg.obstacle_cleanup_z - 100.0)
+        collectible._in_pool = True
+        self._pool.append(collectible)
+
+    def reset(self) -> None:
+        self.spawn_timer = 0.0
+        self.next_interval = self._pick_next_interval(0.0)
+        for collectible in self.collectibles:
+            self._release_collectible(collectible)
+        self.collectibles.clear()
+
+    def _lane_is_safe_for_spawn(self, lane_index: int, obstacles: Sequence[Entity]) -> bool:
+        spawn_z = self.world_cfg.obstacle_spawn_z
+        min_distance = self.collectible_cfg.min_obstacle_distance_z
+        for obstacle in obstacles:
+            if obstacle.lane_index != lane_index:
+                continue
+            if abs(obstacle.z - spawn_z) < min_distance:
+                return False
+        return True
+
+    def _spawn_collectible(self, lane_index: int) -> None:
+        collectible = self._acquire_collectible()
+        if collectible is None:
+            return
+        collectible.position = (
+            self.lane_cfg.x_positions[lane_index],
+            self.collectible_cfg.y,
+            self.world_cfg.obstacle_spawn_z,
+        )
+        collectible.scale = self.collectible_cfg.scale * 0.46
+        collectible.lane_index = lane_index
+        collectible.base_y = self.collectible_cfg.y
+        collectible.phase = random.uniform(0.0, math.tau)
+        collectible.rotation_y = 0
+        collectible.core.scale = 0.62
+        collectible.outer_ring.color = color.rgba(255, 214, 92, 230)
+        collectible.outer_ring.scale = self.collectible_cfg.scale * 2.2
+        collectible.outer_ring.rotation = (0, 0, 0)
+        collectible.inner_ring.color = color.rgba(255, 170, 72, 220)
+        collectible.inner_ring.scale = self.collectible_cfg.scale * 1.42
+        collectible.inner_ring.rotation = (68, 0, 20)
+        collectible.glow.color = color.rgba(255, 224, 128, self.collectible_cfg.glow_alpha)
+        collectible.glow.scale = self.collectible_cfg.scale * (self.collectible_cfg.glow_scale + 0.55)
+        collectible.spark.scale = self.collectible_cfg.scale * 0.15
+        collectible.spark.position = (self.collectible_cfg.scale * 1.08, 0, 0)
+        collectible.outer_ring_base_scale = collectible.outer_ring.scale
+        collectible.inner_ring_base_scale = collectible.inner_ring.scale
         self.collectibles.append(collectible)
 
     def _try_spawn(self, obstacles: Sequence[Entity]) -> None:
@@ -133,7 +192,7 @@ class CollectibleSystem:
             close_enough = abs(collectible.z - player_z) <= threshold
             if same_lane and close_enough:
                 collected_count += 1
-                destroy(collectible)
+                self._release_collectible(collectible)
             else:
                 active_collectibles.append(collectible)
         self.collectibles = active_collectibles
@@ -184,7 +243,7 @@ class CollectibleSystem:
             if collectible.z > cleanup_z:
                 active_collectibles.append(collectible)
             else:
-                destroy(collectible)
+                self._release_collectible(collectible)
         self.collectibles = active_collectibles
 
         self.spawn_timer += dt

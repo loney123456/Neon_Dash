@@ -1,4 +1,11 @@
-from ursina import Ursina, Vec3, camera, color, time, window
+from panda3d.core import ConfigVariableBool, ConfigVariableDouble, ConfigVariableString, loadPrcFileData
+
+# Apply frame pacing config before Ursina/Panda window is created.
+loadPrcFileData("", "sync-video true")
+loadPrcFileData("", "clock-mode normal")
+loadPrcFileData("", "clock-frame-rate 0")
+
+from ursina import Ursina, Vec3, application, camera, color, time, window
 
 from config import CONFIG
 from game.collectibles import CollectibleSystem
@@ -16,7 +23,9 @@ class NeonDashGame:
         self.world = WorldSystem(CONFIG.world, CONFIG.lane)
         self.spawner = ObstacleSpawner(CONFIG.lane, CONFIG.world, CONFIG.spawner)
         self.collectibles = CollectibleSystem(CONFIG.lane, CONFIG.world, CONFIG.collectible)
-        self.hud = HudView()
+        self.hud = HudView(resume_countdown_style=CONFIG.hud.resume_countdown_style)
+        self.resume_countdown_duration = 3.0
+        self.resume_countdown_remaining = 0.0
         self.elapsed_time = 0.0
         self.score = 0
 
@@ -26,6 +35,21 @@ class NeonDashGame:
     def _setup_scene(self) -> None:
         window.title = "Neon Dash"
         window.color = color.rgb(8, 10, 17)
+        # Keep rendering synced with monitor refresh for stable/credible FPS display.
+        if hasattr(window, "vsync"):
+            window.vsync = True
+        if hasattr(application, "target_frame_rate"):
+            application.target_frame_rate = 0
+        if hasattr(window, "fps_counter") and window.fps_counter:
+            window.fps_counter.enabled = False
+        print(
+            "[FPS-Config] "
+            f"sync-video={bool(ConfigVariableBool('sync-video').getValue())}, "
+            f"clock-mode={ConfigVariableString('clock-mode').getValue()}, "
+            f"clock-frame-rate={float(ConfigVariableDouble('clock-frame-rate').getValue())}, "
+            f"window.vsync={getattr(window, 'vsync', None)}, "
+            f"target_frame_rate={getattr(application, 'target_frame_rate', None)}",
+        )
         camera.position = Vec3(0, 13, -28)
         camera.rotation_x = 22
         camera.fov = 50
@@ -53,22 +77,37 @@ class NeonDashGame:
     def _start_run(self) -> None:
         self.elapsed_time = 0.0
         self.score = 0
+        self.resume_countdown_remaining = 0.0
         self.player.reset()
         self.world.reset()
         self.spawner.reset()
         self.collectibles.reset()
+        self.hud.hide_resume_countdown()
         self.hud.set_score(self.score)
+        self.hud.set_elapsed_time(self.elapsed_time)
         self._set_state(GameState.PLAYING)
 
     def _end_run(self) -> None:
         self._set_state(GameState.GAME_OVER)
 
+    def _start_resume_countdown(self) -> None:
+        self.resume_countdown_remaining = self.resume_countdown_duration
+        self.hud.start_resume_countdown(self.resume_countdown_duration)
+        self._set_state(GameState.RESUMING)
+
+    def _cancel_resume_countdown(self) -> None:
+        self.resume_countdown_remaining = 0.0
+        self.hud.hide_resume_countdown()
+        self._set_state(GameState.PAUSED)
+
     def input(self, key: str) -> None:
-        if key == "escape":
+        if key in {"escape", "p"}:
             if self.state.is_state(GameState.PLAYING):
                 self._set_state(GameState.PAUSED)
             elif self.state.is_state(GameState.PAUSED):
-                self._set_state(GameState.PLAYING)
+                self._start_resume_countdown()
+            elif self.state.is_state(GameState.RESUMING):
+                self._cancel_resume_countdown()
             return
 
         if self.state.is_state(GameState.START):
@@ -103,13 +142,23 @@ class NeonDashGame:
 
     def update(self) -> None:
         dt = time.dt
-        self.player.update(dt)
         self.hud.update(dt)
+        self.hud.set_elapsed_time(self.elapsed_time)
+
+        if self.state.is_state(GameState.RESUMING):
+            self.resume_countdown_remaining = max(0.0, self.resume_countdown_remaining - dt)
+            self.hud.set_resume_countdown_remaining(self.resume_countdown_remaining)
+            if self.resume_countdown_remaining <= 0.0:
+                self.hud.hide_resume_countdown()
+                self._set_state(GameState.PLAYING)
+            return
 
         if not self.state.is_state(GameState.PLAYING):
             return
 
+        self.player.update(dt)
         self.elapsed_time += dt
+        self.hud.set_elapsed_time(self.elapsed_time)
         difficulty_t = self._difficulty_t()
         speed = self._current_speed()
         self.world.update(dt, speed)
@@ -136,7 +185,10 @@ class NeonDashGame:
             self._end_run()
 
 
-app = Ursina()
+try:
+    app = Ursina(vsync=True)
+except TypeError:
+    app = Ursina()
 game = NeonDashGame()
 
 

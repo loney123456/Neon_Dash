@@ -1,7 +1,7 @@
 import random
 from typing import AbstractSet, Optional
 
-from ursina import Entity, color, destroy
+from ursina import Entity, color
 
 from config import LaneConfig, SpawnerConfig, WorldConfig
 
@@ -19,6 +19,11 @@ class ObstacleSpawner:
         self.spawn_timer = 0.0
         self.next_interval = self._pick_next_interval(0.0)
         self.obstacles: list[Entity] = []
+        self._pool: list[Entity] = []
+        self._created_count = 0
+        self._pool_max_size = max(1, self.spawner_cfg.pool_max_size)
+        self._pool_initial_size = max(0, min(self.spawner_cfg.pool_initial_size, self._pool_max_size))
+        self._prewarm_pool()
 
     @staticmethod
     def _lerp(a: float, b: float, t: float) -> float:
@@ -40,27 +45,65 @@ class ObstacleSpawner:
             max_interval,
         )
 
+    def _prewarm_pool(self) -> None:
+        for _ in range(self._pool_initial_size):
+            obstacle = self._create_obstacle_entity()
+            obstacle._in_pool = True
+            self._pool.append(obstacle)
+
+    def _create_obstacle_entity(self) -> Entity:
+        obstacle = Entity(
+            model="cube",
+            color=color.rgb(255, 93, 125),
+            position=(0, -1000, self.world_cfg.obstacle_cleanup_z - 100.0),
+            scale=(1.2, 2.0, 1.4),
+            collider="box",
+            enabled=False,
+        )
+        obstacle.lane_index = 1
+        obstacle._in_pool = False
+        self._created_count += 1
+        return obstacle
+
+    def _acquire_obstacle(self) -> Optional[Entity]:
+        obstacle: Optional[Entity] = None
+        if self._pool:
+            obstacle = self._pool.pop()
+        elif self._created_count < self._pool_max_size:
+            obstacle = self._create_obstacle_entity()
+        if obstacle is None:
+            return None
+        obstacle._in_pool = False
+        obstacle.enabled = True
+        return obstacle
+
+    def _release_obstacle(self, obstacle: Entity) -> None:
+        if getattr(obstacle, "_in_pool", False):
+            return
+        obstacle.enabled = False
+        obstacle.position = (0, -1000, self.world_cfg.obstacle_cleanup_z - 100.0)
+        obstacle._in_pool = True
+        self._pool.append(obstacle)
+
     def reset(self) -> None:
         self.spawn_timer = 0.0
         self.next_interval = self._pick_next_interval(0.0)
         for obstacle in self.obstacles:
-            destroy(obstacle)
+            self._release_obstacle(obstacle)
         self.obstacles.clear()
 
-    def _spawn_obstacle(self, lane_index: int) -> None:
-        obstacle = Entity(
-            model="cube",
-            color=color.rgb(255, 93, 125),
-            position=(
-                self.lane_cfg.x_positions[lane_index],
-                1.0,
-                self.world_cfg.obstacle_spawn_z,
-            ),
-            scale=(1.2, 2.0, 1.4),
-            collider="box",
+    def _spawn_obstacle(self, lane_index: int) -> bool:
+        obstacle = self._acquire_obstacle()
+        if obstacle is None:
+            return False
+        obstacle.position = (
+            self.lane_cfg.x_positions[lane_index],
+            1.0,
+            self.world_cfg.obstacle_spawn_z,
         )
         obstacle.lane_index = lane_index
         self.obstacles.append(obstacle)
+        return True
 
     def _spawn_pattern(
         self,
@@ -106,5 +149,5 @@ class ObstacleSpawner:
             if obstacle.z > cleanup_z:
                 active_obstacles.append(obstacle)
             else:
-                destroy(obstacle)
+                self._release_obstacle(obstacle)
         self.obstacles = active_obstacles

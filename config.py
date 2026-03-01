@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 
-
 @dataclass(frozen=True)
 class LaneConfig:
     # X positions for lanes from left to right.
@@ -88,6 +87,14 @@ class SpawnerConfig:
     # Chance to spawn 2-lane obstacle pattern at max difficulty (0~1).
     # Practical range: 0.35 ~ 0.80
     end_two_obstacle_chance: float = 0.58
+    # Obstacle pool prewarm size at game start.
+    # Higher value reduces first-spawn allocation spikes.
+    # Practical range: 8 ~ 40
+    pool_initial_size: int = 18
+    # Obstacle pool hard cap.
+    # Prevents unbounded runtime entity creation.
+    # Practical range: 20 ~ 120
+    pool_max_size: int = 60
 
 
 @dataclass(frozen=True)
@@ -146,6 +153,14 @@ class CollectibleConfig:
     # Lower value => subtler, cleaner look.
     # Practical range: 70 ~ 170
     glow_alpha: int = 105
+    # Collectible pool prewarm size at game start.
+    # Higher value reduces runtime allocation spikes.
+    # Practical range: 4 ~ 24
+    pool_initial_size: int = 10
+    # Collectible pool hard cap.
+    # Prevents unbounded runtime entity creation.
+    # Practical range: 8 ~ 80
+    pool_max_size: int = 32
 
 
 @dataclass(frozen=True)
@@ -153,7 +168,17 @@ class DifficultyConfig:
     # Time in seconds to reach max difficulty interpolation (t=1.0).
     # Lower value => faster difficulty spike.
     # Practical range: 50 ~ 180
-    ramp_seconds: float = 70.0
+    # ramp_seconds: float = 70.0
+    ramp_seconds: float = 40.0
+
+
+@dataclass(frozen=True)
+class HudConfig:
+    # Resume countdown visual style.
+    # "cyber": panel + subtitle + subtle pulse (current default).
+    # "minimal": large timer only, no background panel/shadow.
+    # resume_countdown_style: str = "cyber"
+    resume_countdown_style: str = "minimal"
 
 
 @dataclass(frozen=True)
@@ -165,6 +190,7 @@ class GameConfig:
     spawner: SpawnerConfig = SpawnerConfig()
     collectible: CollectibleConfig = CollectibleConfig()
     difficulty: DifficultyConfig = DifficultyConfig()
+    hud: HudConfig = HudConfig()
 
 
 # ------------------------------------------------------------
@@ -226,5 +252,78 @@ class GameConfig:
 # collectible.reward_score = 4
 # collectible.max_active = 5
 # collectible.pickup_z_threshold = 1.00
+#
+# LOW_SPEC_STABILITY (lower load, longer stable runs on weaker machines)
+# movement.start_speed = 10.5
+# movement.end_speed = 18.5
+# movement.score_per_second = 8.0
+# difficulty.ramp_seconds = 110.0
+# spawner.start_min_spawn_interval = 1.15
+# spawner.start_max_spawn_interval = 1.65
+# spawner.end_min_spawn_interval = 0.72
+# spawner.end_max_spawn_interval = 1.08
+# spawner.start_two_obstacle_chance = 0.08
+# spawner.end_two_obstacle_chance = 0.38
+# spawner.pool_initial_size = 12
+# spawner.pool_max_size = 28
+# collectible.start_min_spawn_interval = 1.25
+# collectible.start_max_spawn_interval = 2.00
+# collectible.end_min_spawn_interval = 0.95
+# collectible.end_max_spawn_interval = 1.45
+# collectible.max_active = 5
+# collectible.bob_speed = 2.6
+# collectible.spin_speed = 120.0
+# collectible.glow_scale = 2.3
+# collectible.glow_alpha = 88
+# collectible.pool_initial_size = 6
+# collectible.pool_max_size = 16
 # ------------------------------------------------------------
-CONFIG = GameConfig()
+
+# Optional one-switch profile toggle.
+# False: keep current default (balanced/high-spec) config.
+# True: use low-spec stability profile for long-run testing.
+USE_LOW_SPEC_STABILITY_PROFILE = False
+# USE_LOW_SPEC_STABILITY_PROFILE = True
+
+if USE_LOW_SPEC_STABILITY_PROFILE:
+    CONFIG = GameConfig(
+        movement=MovementConfig(
+            start_speed=10.5,
+            end_speed=18.5,
+            score_per_second=8.0,
+        ),
+        spawner=SpawnerConfig(
+            start_min_spawn_interval=1.15,
+            start_max_spawn_interval=1.65,
+            end_min_spawn_interval=0.72,
+            end_max_spawn_interval=1.08,
+            start_two_obstacle_chance=0.08,
+            end_two_obstacle_chance=0.38,
+            pool_initial_size=12,
+            pool_max_size=28,
+        ),
+        collectible=CollectibleConfig(
+            start_min_spawn_interval=1.25,
+            start_max_spawn_interval=2.00,
+            end_min_spawn_interval=0.95,
+            end_max_spawn_interval=1.45,
+            reward_score=5,
+            min_obstacle_distance_z=9.5,
+            max_active=5,
+            y=2.2,
+            scale=1.0,
+            pickup_z_threshold=1.2,
+            bob_amplitude=0.13,
+            bob_speed=2.6,
+            spin_speed=120.0,
+            glow_scale=2.3,
+            glow_alpha=88,
+            pool_initial_size=6,
+            pool_max_size=16,
+        ),
+        difficulty=DifficultyConfig(
+            ramp_seconds=110.0,
+        ),
+    )
+else:
+    CONFIG = GameConfig()

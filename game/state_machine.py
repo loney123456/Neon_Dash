@@ -5,6 +5,7 @@ class GameState(Enum):
     START = auto()
     PLAYING = auto()
     PAUSED = auto()
+    RESUMING = auto()
     GAME_OVER = auto()
 
 
